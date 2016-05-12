@@ -1,0 +1,27 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - core.entity_view_mode.node.teaser
+    - field.field.node.rest_drupal_simple_article.body
+    - field.field.node.rest_drupal_simple_article.field_rest_drupal_author
+    - node.type.rest_drupal_simple_article
+  module:
+    - text
+    - user
+id: node.rest_drupal_simple_article.teaser
+targetEntityType: node
+bundle: rest_drupal_simple_article
+mode: teaser
+content:
+  body:
+    label: hidden
+    type: text_summary_or_trimmed
+    weight: 101
+    settings:
+      trim_length: 600
+    third_party_settings: {  }
+  links:
+    weight: 100
+hidden:
+  field_rest_drupal_author: true

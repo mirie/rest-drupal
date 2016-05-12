@@ -1,0 +1,16 @@
+name: 'Simple Article'
+description: 'Provides Simple Article content type and related configuration. A very simple Article that consists of a Title, Body, and an user reference to an Author.'
+type: module
+core: 8.x
+dependencies:
+  - field
+  - menu_ui
+  - node
+  - path
+  - text
+  - user
+  - views
+  - rest
+  - serialization
+version: 8.x-1.0-beta1
+package: rest_drupal

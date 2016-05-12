@@ -1,0 +1,170 @@
+<?php
+/**
+ * @file
+ * Install file for rest_drupal_simple_article.
+ */
+
+use Drupal\Component\Utility\Random;
+use Drupal\user\Entity\Role;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\user\Entity\User;
+use Drupal\node\Entity\Node;
+
+/**
+ * Implements hook_install().
+ *
+ * Seeds dummy Simple Article content on install.
+ */
+function rest_drupal_simple_article_install() {
+  // Seeding content could be accomplished with Devel generate, but let's make
+  // things fun by using a CSV file to create the dummy content.
+  // Plus devel generate makes body summary fields really long. Note to self:
+  // remember to bring up again for discussion @ Drupal D8 Study Group.
+
+  // Typically would create roles in another install hook for a module like
+  // rest_drupal_users.install. Let's keep this simple and just use existing
+  // roles from core.
+
+  // First create the dummy users for authors.
+  _create_dummy_users();
+
+  // Then create the dummy content.
+  _create_dummy_articles();
+}
+
+/**
+ * Helper function that setups up the information for the dummy users.
+ *
+ * @return array
+ *   An array containing information needed to create the user accounts.
+ */
+function _dummy_user_list() {
+  // We'll make everyone an administrator to keep things super simple for now.
+  $users = [
+    'cupcake' => [
+      'roles' => [
+        'administrator',
+      ],
+    ],
+    'coffee' => [
+      'roles' => [
+        'administrator',
+      ],
+    ],
+    'itcrowd' => [
+      'roles' => [
+        'administrator',
+      ],
+    ],
+  ];
+
+  return $users;
+}
+
+/**
+ * Helper function that handles the creation of dummy user accounts.
+ */
+function _create_dummy_users() {
+  $users = _dummy_user_list();
+
+  $random = new Random();
+
+  // Create the users.
+  foreach ($users as $name => $user) {
+    $new_user = User::create();
+    $new_user->setUsername($name);
+    $new_user->setEmail($name . '@example.com');
+
+    // Password gets hashed on save.
+    $new_user->setPassword($random->word(mt_rand(6, 12)));
+    $new_user->enforceIsNew();
+    $new_user->activate();
+
+    // Add the roles.
+    foreach ($user['roles'] as $rid) {
+      $new_user->addRole($rid);
+    }
+
+    // Save user.
+    try {
+      $result = $new_user->save();
+      if ($result == SAVED_NEW) {
+        \Drupal::logger('rest_drupal_simple_article')->notice('Created user: @username',
+          ['@username' => $name]);
+      }
+    }
+    catch (Exception $e) {
+      \Drupal::logger('rest_drupal_simple_article')->error('There was a problem saving user: @username due to exception: @e',
+        [
+          '@username' => $name,
+          '@e' => $e->getMessage(),
+        ]);
+    }
+  }
+}
+
+/**
+ * Helper function that handles the creation of dummy articles using a csv file.
+ *
+ * @param string $file_path
+ *   Optional path to the csv file. Defaults to
+ *   rest_drupal_simple_articles/files/dummy_articles.csv if none given.
+ */
+function _create_dummy_articles($file_path = '') {
+  if (!$file_path) {
+    $file_path = drupal_get_path('module', 'rest_drupal_simple_article') . '/files/dummy_articles.csv';
+  }
+
+  // Check the file.
+  $file_handle = fopen($file_path, 'r');
+  if ($file_handle === FALSE) {
+    \Drupal::logger('rest_drupal_simple_article')->error('There was a problem
+      opening the file @filename when creating the dummy simple articles',
+      ['@filename' => $file_path]);
+  }
+
+  $rows = array_map('str_getcsv', file($file_path));
+  $header = array_shift($rows);
+
+  $language = \Drupal::languageManager()->getCurrentLanguage()->getId();
+
+  // Now create the Simple Articles.
+  foreach($rows as $row) {
+    $node_info = array_combine($header, $row);
+    $author = user_load_by_name($node_info['author']);
+
+    if ($author) {
+      $node = Node::create([
+        'type' => 'rest_drupal_simple_article',
+        'title' => $node_info['title'],
+        'langcode' => $language,
+        'uid' => 1, // Just author all nodes by user 1.
+        'status' => NODE_PUBLISHED,
+        'field_rest_drupal_author' => [
+          'target_id' => $author->id(),
+          ],
+        'body' => [
+          'value' => $node_info['body'],
+          'format' => 'basic_html',
+        ],
+      ]);
+
+      // Save the node.
+      $result  = $node->save();
+
+      if ($result == SAVED_NEW) {
+        \Drupal::logger('rest_drupal_simple_article')->notice('Created node: @title',
+          ['@title' => $node_info['title']]);
+      }
+      else {
+        \Drupal::logger('rest_drupal_simple_article')->error('There was a problem saving node: @title',
+          ['@title' => $node_info['title']]);
+      }
+
+    }
+    else {
+      \Drupal::logger('rest_drupal_simple_article')->error('Error loading user: @username',
+        ['@username' => $node_info['Author']]);
+    }
+  }
+}
